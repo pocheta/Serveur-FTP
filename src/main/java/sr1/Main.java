@@ -2,7 +2,19 @@ package sr1;
 
 import java.io.IOException;
 
+/**
+ * La classe Main est la classe principale du serveur ftp
+ *
+ * @author pochet
+ * @author michot
+ */
 public class Main {
+
+    /**
+     * main permet la gestion des arguments fournis lors du lancement et exécute la connexion au serveur
+     * @param args arguments passés au lancement (chemin du répertoire pour la création du serveur et portdu serveur ftp)
+     * @throws IOException exception
+     */
     public static void main(String[] args) throws IOException {
         int port = 8888;
 

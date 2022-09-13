@@ -1,6 +1,5 @@
 package sr1;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.BufferedReader;
@@ -11,13 +10,14 @@ import java.net.Socket;
 
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Cette classe permet de tester les différentes méthode de la classe FTPCommands
+ *
+ * @author pochet
+ * @author michot
+ */
 public class FTPCommandsTest {
-
-    @Before
-    public void launchServer() throws IOException {
-        String[] args = {"C:/Users/touto/Documents", "-p=8888"};
-        Main.main(args);
-    }
+    private final String directory = "/Users/julien/serveur/";
 
     @Test
     public void testAUTH () throws IOException {
@@ -95,7 +95,7 @@ public class FTPCommandsTest {
         reader.readLine();
         reader.readLine();
 
-        printer.println("CWD C:/Users/touto/Documents");
+        printer.println("CWD " + directory);
         assertEquals(reader.readLine(), "200 OK");
     }
 
@@ -111,7 +111,7 @@ public class FTPCommandsTest {
         reader.readLine();
         reader.readLine();
 
-        printer.println("CWD C:/Users/touto/Documents/ECOLE");
+        printer.println("CWD " + directory);
         reader.readLine();
         printer.println("CDUP ");
         assertEquals(reader.readLine(), "200 OK");
@@ -129,7 +129,7 @@ public class FTPCommandsTest {
         reader.readLine();
         reader.readLine();
 
-        printer.println("CWD C:/Users/touto/Documents/ECOLE");
+        printer.println("CWD " + directory);
         reader.readLine();
         printer.println("RNFR Nouveau");
         assertEquals(reader.readLine(), "257 \"Nouveau\"");
@@ -147,7 +147,7 @@ public class FTPCommandsTest {
         reader.readLine();
         reader.readLine();
 
-        printer.println("CWD C:/Users/touto/Documents/ECOLE");
+        printer.println("CWD " + directory);
         reader.readLine();
         printer.println("RNFR NouveauDossier");
         reader.readLine();
@@ -167,7 +167,7 @@ public class FTPCommandsTest {
         reader.readLine();
         reader.readLine();
 
-        printer.println("CWD C:/Users/touto/Documents/ECOLE");
+        printer.println("CWD " + directory);
         reader.readLine();
         printer.println("MKD NouveauDossier");
         assertEquals(reader.readLine(), "257 \"NouveauDossier\"");
@@ -185,39 +185,9 @@ public class FTPCommandsTest {
         reader.readLine();
         reader.readLine();
 
-        printer.println("CWD C:/Users/touto/Documents/ECOLE");
+        printer.println("CWD " + directory);
         reader.readLine();
         printer.println("RMD NouveauDossier");
         assertEquals(reader.readLine(), "257 \"NouveauDossier\"");
-    }
-
-    @Test
-    public void testStor () throws IOException {
-        Socket socket = new Socket("127.0.0.1", 8888);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        PrintWriter printer = new PrintWriter(socket.getOutputStream(), true);
-        reader.readLine();
-        printer.println("USER " + "test");
-        reader.readLine();
-        printer.println("PASS " + "test");
-        reader.readLine();
-        reader.readLine();
-
-        //TODO
-    }
-
-    @Test
-    public void testRetr () throws IOException {
-        Socket socket = new Socket("127.0.0.1", 8888);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        PrintWriter printer = new PrintWriter(socket.getOutputStream(), true);
-        reader.readLine();
-        printer.println("USER " + "test");
-        reader.readLine();
-        printer.println("PASS " + "test");
-        reader.readLine();
-        reader.readLine();
-
-        //TODO
     }
 }

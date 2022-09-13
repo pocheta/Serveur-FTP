@@ -7,7 +7,14 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-class ClientThread extends Thread {
+/**
+ * La classe ClientThread gère les différents socket nécessaires à l'acceptation et au fonctionnement des connexions
+ * avec les clients ftp
+ *
+ * @author pochet
+ * @author michot
+ */
+public class ClientThread extends Thread {
 
     private final Socket socket;
     private Socket dataConnection;
@@ -18,7 +25,6 @@ class ClientThread extends Thread {
     private PrintWriter dataWriter;
 
     private final BufferedReader bufferedReader;
-    private BufferedReader dataReader;
 
     TransferType transferMode = TransferType.ASCII;
 
@@ -29,14 +35,12 @@ class ClientThread extends Thread {
         this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.printWriter = new PrintWriter(socket.getOutputStream(), true);
         this.printWriter.println("220 (vsFTPd 3.0.3)");
-        this.ftpCommands = new FTPCommands(this, printWriter, currentDirectory);
-
+        this.ftpCommands = new FTPCommands(this, currentDirectory);
     }
 
     @Override
     public void run() {
         while (true) {
-
             try {
                 String command = bufferedReader.readLine();
                 if (command !=null) {
@@ -44,38 +48,67 @@ class ClientThread extends Thread {
                     System.out.println("Command from " + socket.getRemoteSocketAddress() + " : " + command);
                     ftpCommands.executeCommand(command);
                 }
-
-            } catch (Exception e) {
-                // ERREUR
+            } catch (IOException | SocketException | DataConnectionException | DirectoryException e) {
+                e.printStackTrace();
             }
         }
 
     }
 
-    int createServerSocket() {
+    /**
+     * createServerSocket créé un tunnel de données du serveur ftp
+     * @return le port du tunnel créé
+     * @throws SocketException exception
+     */
+    protected int createServerSocket() throws SocketException {
         int port = -1;
         try {
             dataSocket = new ServerSocket(0);
             port =  dataSocket.getLocalPort();
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new SocketException("Impossible de creer la socket : " + e.getMessage());
         }
         return port;
     }
 
-    void openDataConnectionPassive() {
+    /**
+     * openDataConnectionPassive ouvre une connexion passive pour le transfert de données
+     * @throws DataConnectionException exception
+     */
+    protected void openDataConnectionPassive() throws DataConnectionException {
 
         try {
             dataConnection = dataSocket.accept();
             dataWriter = new PrintWriter(dataConnection.getOutputStream(), true);
-            dataReader = new BufferedReader(new InputStreamReader(dataConnection.getInputStream()));
+            BufferedReader dataReader = new BufferedReader(new InputStreamReader(dataConnection.getInputStream()));
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new DataConnectionException("Impossible de creer la socket en mode passif : " + e.getMessage());
         }
 
     }
 
-    void closeDataConnection() {
+    /**
+     * openDataConnectionActive ouvre une connexion active pour le transfert de données
+     * @param addr addresse ip
+     * @param port port
+     * @throws DataConnectionException exception
+     */
+    protected void openDataConnectionActive(String addr, int port) throws DataConnectionException {
+        try {
+            sendMsgToClient("200 PORT command succssful");
+            dataConnection = new Socket(addr, port);
+            dataWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+            BufferedReader dataReader = new BufferedReader(new InputStreamReader(dataConnection.getInputStream()));
+        } catch (IOException e){
+            throw new DataConnectionException("Impossible de creer la socket en mode actif : " + e.getMessage());
+        }
+    }
+
+    /**
+     * closeDataConnection ferme la connexion de transfert de données
+     * @throws DataConnectionException exception
+     */
+    protected void closeDataConnection() throws DataConnectionException {
         try {
             dataWriter.close();
             dataConnection.close();
@@ -84,28 +117,35 @@ class ClientThread extends Thread {
             }
 
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new DataConnectionException("Impossible de fermer la socket : " + e.getMessage());
         }
         dataWriter = null;
         dataConnection = null;
         dataSocket = null;
     }
 
-    void sendMsgToClient(String msg) {
+    /**
+     * getDataConnection getter de dataConnection
+     * @return dataConnection
+     */
+    protected Socket getDataConnection() {
+        return dataConnection;
+    }
+
+    /**
+     * sendMsgToClient envooie un message passé en paramètre au client ftp
+     * @param msg message à envoyer
+     */
+    protected void sendMsgToClient(String msg) {
         printWriter.println(msg);
     }
 
-    void sendDataMsgToClient(String msg) {
+    /**
+     * sendDataMsgToClient envoie un message de donnée passé en paramètre au client ftp
+     * @param msg message à envoyer
+     */
+    protected void sendDataMsgToClient(String msg) {
         dataWriter.println(msg);
     }
 
-    String getDataFromClient() throws IOException {
-        String res = "";
-        String line = dataReader.readLine();
-        while(line != null) {
-            res +=line;
-            line = dataReader.readLine();
-        }
-        return res;
-    }
 }

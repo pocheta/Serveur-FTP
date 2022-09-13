@@ -4,11 +4,19 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.LinkedList;
 
-class FTPCommands {
+/**
+ * Cette classe permet de gérer les commandes reçu par le client
+ * La classe contient tous les méthodes permettant d'éffectuer chaque commande
+ *
+ * @author pochet
+ * @author michot
+ */
+public class FTPCommands {
+
     private final ClientThread clientThread;
-    private final PrintWriter printWriter;
     private String currentDirectory;
     private final LinkedList<String> lastDirectory;
     private File fileRename;
@@ -16,14 +24,27 @@ class FTPCommands {
     private String validUser;
     private String validPassword;
 
-    FTPCommands(ClientThread clientThread, PrintWriter printWriter, String currentDirectory) {
+    /**
+     * Ce constructeur permet de créer FTPCommands avec en paramètre le client qui va envoyer les commandes a notre
+     * serveur ainsi que le répertoire courant
+     * @param clientThread
+     * @param currentDirectory
+     */
+    FTPCommands(ClientThread clientThread, String currentDirectory) {
         this.clientThread = clientThread;
         this.currentDirectory = currentDirectory;
-        this.printWriter = printWriter;
         this.lastDirectory = new LinkedList<>();
     }
 
-    void executeCommand(String c) throws IOException {
+    /**
+     * executeCommand permet de gérer une commande donnée grâce à un switch case
+     * @param c commande à exécuter
+     * @throws IOException exception
+     * @throws SocketException exception
+     * @throws DataConnectionException exception
+     * @throws DirectoryException exception
+     */
+    protected void executeCommand(String c) throws IOException, SocketException, DataConnectionException, DirectoryException {
         int index = c.indexOf(' ');
         String command = ((index == -1) ? c.toUpperCase() : (c.substring(0, index)).toUpperCase());
         String args = ((index == -1) ? null : c.substring(index + 1));
@@ -31,17 +52,19 @@ class FTPCommands {
         System.out.println("Command: " + command + " Args: " + args);
 
         switch (command) {
-            case "AUTH" -> handleAuth(args);
+            case "AUTH" -> handleAuth();
 
             case "USER" -> checkUser(args);
 
             case "PASS" -> checkPassword(args);
 
-            case "PWD" -> sendMsgToClient("257 \"" + currentDirectory + "\" is the current directory");
+            case "PWD" -> clientThread.sendMsgToClient("257 \"" + currentDirectory + "\" is the current directory");
 
             case "TYPE" -> handleType(args);
 
             case "PASV" -> handlePasv();
+
+            case "PORT" -> handlePort(args);
 
             case "LIST" -> handleList(args);
 
@@ -61,17 +84,22 @@ class FTPCommands {
 
             case "RETR" -> handleRetr(args);
 
-            default -> {
-                System.out.println("501 Unknown command");
-                sendMsgToClient("501 Unknown command");
-            }
+            default -> clientThread.sendMsgToClient("501 Unknown command");
         }
     }
 
-    private void handleAuth(String args){
-        sendMsgToClient("530 Please login with USER and PASS.");
+    /**
+     * handleAuth permet la connexion par user et pass
+     */
+    private void handleAuth(){
+        clientThread.sendMsgToClient("530 Please login with USER and PASS.");
     }
 
+    /**
+     * checkUser vérifie si le user donné existe dans le fichier des user
+     * @param username
+     * @throws IOException
+     */
     private void checkUser(String username) throws IOException {
         Path path = Paths.get("src/main/java/sr1/user.txt");
         BufferedReader bufferedReader = Files.newBufferedReader(path);
@@ -83,39 +111,50 @@ class FTPCommands {
             if (username.toLowerCase().equals(line.split(":")[0])) {
                 validUser = line.split(":")[0];
                 validPassword =  line.split(":")[1];
-                sendMsgToClient("331 Please specify the password.");
+                clientThread.sendMsgToClient("331 Please specify the password.");
             }
 
             line = bufferedReader.readLine();
         }
 
         if (validUser == null){
-            sendMsgToClient("530 User KO");
+            clientThread.sendMsgToClient("530 User KO");
         }
     }
 
+    /**
+     * checkPassword vérifie si le password donné correspond à celui lié à l'utilisateur passé plus tôt
+     * @param password
+     */
     private void checkPassword(String password) {
         if (password.equals(validPassword)) {
-            sendMsgToClient("230-Welcome to FTP-SERVER");
-            sendMsgToClient("230 Login successful");
+            clientThread.sendMsgToClient("230-Welcome to FTP-SERVER");
+            clientThread.sendMsgToClient("230 Login successful");
         } else {
-            sendMsgToClient("530 Password KO");
+            clientThread.sendMsgToClient("530 Password KO");
         }
     }
 
+    /**
+     * handleType permet de gérer l'ASCII et le BINARY
+     * @param mode
+     */
     private void handleType(String mode) {
         if (mode.equalsIgnoreCase("A")) {
             clientThread.transferMode = TransferType.ASCII;
-            sendMsgToClient("200 Switching to ASCII mode.");
+            clientThread.sendMsgToClient("200 Switching to ASCII mode.");
         } else if (mode.equalsIgnoreCase("I")) {
             clientThread.transferMode = TransferType.BINARY;
-            sendMsgToClient("200 Switching to Binary mode.");
+            clientThread.sendMsgToClient("200 Switching to Binary mode.");
         } else {
-            sendMsgToClient("504 Type KO");
+            clientThread.sendMsgToClient("504 Type KO");
         }
     }
 
-    private void handlePasv() {
+    /**
+     * handlePasv créé une connexion temporaire pour l'utilisation de commandes spécifiques (mode passif)
+     */
+    private void handlePasv() throws SocketException, DataConnectionException {
         int dataPort = clientThread.createServerSocket();
 
         String myIp = "127.0.0.1";
@@ -124,19 +163,39 @@ class FTPCommands {
         int p1 = dataPort / 256;
         int p2 = dataPort % 256;
 
-        sendMsgToClient("227 Entering Passive Mode (" + myIpSplit[0] + "," + myIpSplit[1] + "," + myIpSplit[2] + ","
+        clientThread.sendMsgToClient("227 Entering Passive Mode (" + myIpSplit[0] + "," + myIpSplit[1] + "," + myIpSplit[2] + ","
                 + myIpSplit[3] + "," + p1 + "," + p2 + ")");
 
         clientThread.openDataConnectionPassive();
     }
 
-    private void handleList(String args) {
+    /**
+     * handlePort créé une connexion temporaire pour l'utilisation de commandes spécifiques (mode actif)
+     * @param args
+     */
+    private void handlePort(String args) throws DataConnectionException {
+        String[] myIpSplit = args.split(",");
+
+        int p1 = Integer.parseInt(myIpSplit[4]);
+        int p2 = Integer.parseInt(myIpSplit[5]);
+        int port = p1 * 256 + p2;
+
+        String addr = String.join(".", Arrays.copyOfRange(myIpSplit, 0 ,4));
+
+        clientThread.openDataConnectionActive(addr, port);
+    }
+
+    /**
+     * handleList permet au client ftp de lister un répertoire
+     * @param args
+     */
+    private void handleList(String args) throws DataConnectionException {
         File[] dirContent = nlstHelper(args);
 
         if (dirContent == null) {
-            sendMsgToClient("550 File does not exist.");
+            clientThread.sendMsgToClient("550 File does not exist.");
         } else {
-            sendMsgToClient("150 Here comes the directory listing.");
+            clientThread.sendMsgToClient("150 Here comes the directory listing.");
 
             for (File f : dirContent ) {
                 String stringBuilder =
@@ -159,21 +218,23 @@ class FTPCommands {
             }
 
             clientThread.closeDataConnection();
-            sendMsgToClient("226 Directory send OK.");
+            clientThread.sendMsgToClient("226 Directory send OK.");
 
         }
 
     }
 
+    /**
+     * nlstHelper renvoie le contenu du dossier à lister dans la méthode handleList
+     * @param args
+     * @return
+     */
     private File[] nlstHelper(String args) {
-        // Construct the name of the directory to list.
         String filename = currentDirectory;
         if (args != null) {
             filename = filename + '/' + args;
         }
 
-        // Now get a File object, and see if the name we got exists and is a
-        // directory.
         File f = new File(filename);
 
         if (f.exists() && f.isDirectory()) {
@@ -187,65 +248,118 @@ class FTPCommands {
         }
     }
 
+    /**
+     * handleCwd permet de changer le répertoire courant
+     * @param args
+     */
     private void handleCwd(String args) {
         String replace = args.replace("\\", "/");
         if (replace.contains("/")){
             lastDirectory.add(currentDirectory);
             currentDirectory = replace;
-            sendMsgToClient("200 OK");
+            clientThread.sendMsgToClient("200 OK");
         }else {
             lastDirectory.add(currentDirectory);
             currentDirectory = currentDirectory + "/" + replace;
-            sendMsgToClient("200 OK");
+            clientThread.sendMsgToClient("200 OK");
         }
     }
 
+    /**
+     * handleCdup permet de se déplacer dans le répertoire parent
+     */
     private void handleCdup(){
         currentDirectory = lastDirectory.getLast();
         lastDirectory.removeLast();
-        sendMsgToClient("200 OK");
+        clientThread.sendMsgToClient("200 OK");
     }
 
+    /**
+     * handleRnfr spécifie l'ancien chemin du fichier à renommer
+     * @param args
+     */
     private void handleRnfr(String args){
         fileRename = new File(currentDirectory + "//" + args);
-        sendMsgToClient("257 \"" + args + "\"");
+        clientThread.sendMsgToClient("257 \"" + args + "\"");
     }
 
+    /**
+     * handleRnto spécifie le nouveau chemin du fichier à renommer et le renomme
+     * @param args
+     */
     private void handleRnto(String args){
         File fileTo = new File(currentDirectory + "//" + args);
         fileRename.renameTo(fileTo);
-        sendMsgToClient("257 \"" + args + "\"");
+        clientThread.sendMsgToClient("257 \"" + args + "\"");
     }
 
-    private void handleMkd(String args) throws IOException {
-        Files.createDirectories(Paths.get(currentDirectory + "//" + args));
-        sendMsgToClient("257 \"" + args + "\"");
+    /**
+     * handleMkd permet de créer un nouveau répertoire
+     * @param args
+     * @throws IOException
+     */
+    private void handleMkd(String args) throws DirectoryException {
+        try {
+            Files.createDirectories(Paths.get(currentDirectory + "//" + args));
+            clientThread.sendMsgToClient("257 \"" + args + "\"");
+        } catch (IOException e) {
+            throw new DirectoryException("Impossible de creer le répertoire : " + e.getMessage());
+        }
     }
 
-    private void handleRmd(String args) throws IOException {
-        Files.deleteIfExists(Paths.get(currentDirectory + "//" + args));
-        sendMsgToClient("257 \"" + args + "\"");
+    /**
+     * handleRmd permet de supprimer un répertoire
+     * @param args
+     * @throws IOException
+     */
+    private void handleRmd(String args) throws DirectoryException {
+        try {
+            Files.deleteIfExists(Paths.get(currentDirectory + "//" + args));
+            clientThread.sendMsgToClient("257 \"" + args + "\"");
+        }catch (IOException e) {
+            throw new DirectoryException("Impossible de supprimer le répertoire : " + e.getMessage());
+        }
     }
 
-    private void handleStor(String args) throws IOException {
-        //TODO
-        InputStream inputStream = new FileInputStream("/Users/julien/Downloads/BLOCKCHAIN.pdf");
+    /**
+     * handleStor permet l'envoi de données vers le serveur ftp
+     * @param file
+     * @throws IOException
+     */
+    private void handleStor(String file) throws IOException {
+        clientThread.sendMsgToClient("150 Ok to send data.");
 
-        System.out.println("ICIIIIC"+clientThread.getDataFromClient());
+        BufferedInputStream bufferedInputStream = new BufferedInputStream(clientThread.getDataConnection().getInputStream());
 
-        System.out.println("ARGS: " + args);
-        System.out.println("current: " + currentDirectory);
+        byte[] fileBytes = bufferedInputStream.readAllBytes();
+
+        FileOutputStream fileOutputStream = new FileOutputStream(currentDirectory + "/" + file);
+
+        fileOutputStream.write(fileBytes, 0, fileBytes.length);
+
+        bufferedInputStream.close();
+        fileOutputStream.close();
+
+        clientThread.sendMsgToClient("226 Directory send OK.");
     }
 
-    private void handleRetr(String args){
-        //TODO
-        File file = new File(args);
+    /**
+     * handleRetr permet le téléchargement de données depuis le serveur ftp
+     * @param file
+     * @throws IOException
+     */
+    private void handleRetr(String file) throws IOException {
+        FileInputStream fileInputStream = new FileInputStream(currentDirectory + "/" + file);
 
-        // envoyer vers le client
-    }
+        BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(clientThread.getDataConnection().getOutputStream());
 
-    private void sendMsgToClient(String msg) {
-        printWriter.println(msg);
+        byte[] fileBytes = fileInputStream.readAllBytes();
+        clientThread.sendMsgToClient("150 Opening BINARY mode");
+
+        bufferedOutputStream.write(fileBytes);
+        bufferedOutputStream.close();
+
+        clientThread.sendMsgToClient("226 Transfer complete.");
     }
 
 }

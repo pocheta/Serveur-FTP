@@ -4,10 +4,17 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-class ServerFTP extends Thread {
+/**
+ * La classe ServerFTP gère la connexion entre les clients ftp et ce serveur ftp
+ *
+ * @author pochet
+ * @author michot
+ */
+public class ServerFTP extends Thread {
+
     private ServerSocket serverSocket;
-    private String currentDirectory;
-    private int port;
+    private final String currentDirectory;
+    private final int port;
 
 
     ServerFTP(String currentDirectory, int port) {
@@ -16,7 +23,11 @@ class ServerFTP extends Thread {
         this.port = port;
     }
 
-    void connection() throws IOException {
+    /**
+     * connection permet la connexion au serveur FTP tout au long du temps d'exécution
+     * @throws IOException exception
+     */
+    protected void connection() throws IOException {
 
         serverSocket = new ServerSocket(port);
         System.out.println("Server Started on port " + port + " ...");

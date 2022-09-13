@@ -11,9 +11,10 @@ import java.net.Socket;
 import static org.junit.Assert.*;
 
 /**
- * Cette classe permet de tester les différentes méthode de la calsse ClientThread
+ * Cette classe permet de tester les différentes méthode de la classe ClientThread
  *
  * @author pochet
+ * @author michot
  */
 public class ClientThreadTest {
 
